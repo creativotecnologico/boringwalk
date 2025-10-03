@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoringWalk - Simulador de Caminar 3D</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="instructions">
+        <h2>BoringWalk</h2>
+        <p>WASD - Movimiento</p>
+        <p>F3 - Modo Debug | F4 - Cambiar Vista</p>
+        <p>F5 - Cámara Libre/Jugador</p>
+    </div>
+    <div id="player-info">
+        <h3>Información</h3>
+        <p><strong>Modo:</strong> <span id="view-mode">Primera Persona</span></p>
+        <p><strong>Player Pos:</strong> <span id="player-pos">-</span></p>
+        <p><strong>Cámara Pos:</strong> <span id="camera-pos">-</span></p>
+        <p><strong>Cámara Target:</strong> <span id="camera-target">-</span></p>
+    </div>
+
+    <script src="src/math/Vec3.js"></script>
+    <script src="src/math/Mat4.js"></script>
+    <script src="src/core/Shader.js"></script>
+    <script src="src/core/Renderer.js"></script>
+    <script src="src/core/Camera.js"></script>
+    <script src="src/core/WorldCamera.js"></script>
+    <script src="src/core/DebugMode.js"></script>
+    <script src="src/geometry/Geometry.js"></script>
+    <script src="src/entities/Square.js"></script>
+    <script src="src/entities/Terrain.js"></script>
+    <script src="src/entities/Axis.js"></script>
+    <script src="src/entities/Player.js"></script>
+    <script src="src/controls/FirstPersonControls.js"></script>
+    <script src="src/main.js"></script>
+</body>
+</html>

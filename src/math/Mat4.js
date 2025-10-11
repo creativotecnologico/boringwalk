@@ -108,4 +108,67 @@ class Mat4 {
         mat.elements[14] = z;
         return mat;
     }
+
+    // Matriz de rotación en X (pitch)
+    static rotationX(angleRadians) {
+        const mat = new Mat4();
+        const c = Math.cos(angleRadians);
+        const s = Math.sin(angleRadians);
+
+        mat.elements[5] = c;
+        mat.elements[6] = -s;
+        mat.elements[9] = s;
+        mat.elements[10] = c;
+
+        return mat;
+    }
+
+    // Matriz de rotación en Y (yaw)
+    static rotationY(angleRadians) {
+        const mat = new Mat4();
+        const c = Math.cos(angleRadians);
+        const s = Math.sin(angleRadians);
+
+        mat.elements[0] = c;
+        mat.elements[2] = s;
+        mat.elements[8] = -s;
+        mat.elements[10] = c;
+
+        return mat;
+    }
+
+    // Matriz de rotación en Z (roll)
+    static rotationZ(angleRadians) {
+        const mat = new Mat4();
+        const c = Math.cos(angleRadians);
+        const s = Math.sin(angleRadians);
+
+        mat.elements[0] = c;
+        mat.elements[1] = -s;
+        mat.elements[4] = s;
+        mat.elements[5] = c;
+
+        return mat;
+    }
+
+    // Multiplicar matrices (column-major order)
+    multiply(other) {
+        const a = this.elements;
+        const b = other.elements;
+        const result = new Mat4();
+        const r = result.elements;
+
+        // Column-major: resultado[columna][fila]
+        for (let col = 0; col < 4; col++) {
+            for (let row = 0; row < 4; row++) {
+                r[col * 4 + row] =
+                    a[0 * 4 + row] * b[col * 4 + 0] +
+                    a[1 * 4 + row] * b[col * 4 + 1] +
+                    a[2 * 4 + row] * b[col * 4 + 2] +
+                    a[3 * 4 + row] * b[col * 4 + 3];
+            }
+        }
+
+        return result;
+    }
 }

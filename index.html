@@ -3,38 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BoringWalk - Simulador de Caminar 3D</title>
+    <title>BoringWalk</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <canvas id="textCanvas"></canvas>
     <div id="instructions">
         <h2>BoringWalk</h2>
         <p>WASD - Movimiento</p>
-        <p>F3 - Modo Debug | F4 - Cambiar Vista</p>
+        <p>F3 - Modo Debug</p>
+        <p>F4 - Cambiar Vista</p>
         <p>F5 - Cámara Libre/Jugador</p>
-    </div>
+    </div> 
     <div id="player-info">
         <h3>Información</h3>
+        <p><strong>FPS:</strong> <span id="fps">0</span></p>
+        <p><strong>Vértices:</strong> <span id="vertices">0</span></p>
+        <p><strong>Triángulos:</strong> <span id="triangles">0</span></p>
+        <p><strong>Memoria GPU:</strong> <span id="memory">0</span> MB</p>
         <p><strong>Modo:</strong> <span id="view-mode">Primera Persona</span></p>
         <p><strong>Player Pos:</strong> <span id="player-pos">-</span></p>
         <p><strong>Cámara Pos:</strong> <span id="camera-pos">-</span></p>
         <p><strong>Cámara Target:</strong> <span id="camera-target">-</span></p>
     </div>
 
+    <!-- Math -->
     <script src="src/math/Vec3.js"></script>
     <script src="src/math/Mat4.js"></script>
-    <script src="src/core/Shader.js"></script>
-    <script src="src/core/Renderer.js"></script>
+
+    <!-- Engine -->
+    <script src="src/engine/WebGLContext.js"></script>
+    <script src="src/engine/ShaderManager.js"></script>
+    <script src="src/engine/BufferManager.js"></script>
+    <script src="src/engine/TextureManager.js"></script>
+    <script src="src/engine/WebGLEngine.js"></script>
+
+    <!-- ECS -->
+    <script src="src/ecs/Component.js"></script>
+    <script src="src/ecs/Entity.js"></script>
+    <script src="src/ecs/System.js"></script>
+    <script src="src/ecs/World.js"></script>
+
+    <!-- Components -->
+    <script src="src/components/Transform.js"></script>
+    <script src="src/components/MeshRenderer.js"></script>
+    <script src="src/components/Collider.js"></script>
+    <script src="src/components/PlayerController.js"></script>
+    <script src="src/components/WorldCameraController.js"></script>
+    <script src="src/components/WorldAxisGizmo.js"></script>
+
+    <!-- Systems -->
+    <script src="src/systems/RenderSystem.js"></script>
+    <script src="src/systems/PhysicsSystem.js"></script>
+    <script src="src/systems/InputSystem.js"></script>
+
+    <!-- Geometry -->
+    <script src="src/geometry/Mesh.js"></script>
+    <script src="src/geometry/Primitives.js"></script>
+    <script src="src/geometry/TerrainMesh.js"></script>
+
+    <!-- Camera (old but still needed) -->
     <script src="src/core/Camera.js"></script>
-    <script src="src/core/WorldCamera.js"></script>
-    <script src="src/core/DebugMode.js"></script>
-    <script src="src/geometry/Geometry.js"></script>
-    <script src="src/entities/Square.js"></script>
-    <script src="src/entities/Terrain.js"></script>
-    <script src="src/entities/Axis.js"></script>
-    <script src="src/entities/Player.js"></script>
-    <script src="src/controls/FirstPersonControls.js"></script>
+
+    <!-- Main -->
     <script src="src/main.js"></script>
 </body>
 </html>
+ 

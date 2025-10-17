@@ -8,6 +8,13 @@ class PlayerController extends Component {
         this.yaw = 0; // Rotación horizontal (izquierda/derecha)
         this.pitch = 0; // Rotación vertical (arriba/abajo)
         this.mouseSensitivity = 0.002;
+
+        // Head bobbing (balanceo de cabeza)
+        this.bobTime = 0;
+        this.bobSpeed = 8.0; // Velocidad del balanceo
+        this.bobAmount = 0.08; // Altura del balanceo (8cm)
+        this.bobAmountSide = 0.04; // Balanceo lateral (4cm)
+        this.isMoving = false;
     }
 
     move(direction, distance) {
@@ -43,7 +50,23 @@ class PlayerController extends Component {
                 break;
         }
 
+        // Marcar que el jugador se está moviendo
+        this.isMoving = true;
+
         this.saveState();
+    }
+
+    update(deltaTime) {
+        // Actualizar balanceo de cabeza
+        if (this.isMoving) {
+            this.bobTime += deltaTime * this.bobSpeed;
+        } else {
+            // Volver suavemente a la posición neutral
+            this.bobTime = this.bobTime * 0.9;
+        }
+
+        // Reset flag de movimiento (se actualizará en el siguiente frame si sigue moviéndose)
+        this.isMoving = false;
     }
 
     toggleView() {
@@ -90,17 +113,32 @@ class PlayerController extends Component {
 
         if (this.viewMode === 'first') {
             const eyeHeight = this.height * 0.9; // Altura de los ojos (90% de la altura total)
+
+            // Calcular balanceo de cabeza
+            const bobOffsetY = Math.sin(this.bobTime) * this.bobAmount;
+            const bobOffsetX = Math.cos(this.bobTime * 0.5) * this.bobAmountSide;
+
+            // Aplicar balanceo en el sistema de coordenadas del jugador
+            const cos = Math.cos(this.yaw);
+            const sin = Math.sin(this.yaw);
+
             return new Vec3(
-                transform.position.x,
-                transform.position.y + eyeHeight,
-                transform.position.z
+                transform.position.x + (bobOffsetX * cos),
+                transform.position.y + eyeHeight + bobOffsetY,
+                transform.position.z + (bobOffsetX * sin)
             );
         } else {
-            // Tercera persona: cámara detrás del jugador según yaw y pitch
-            const distance = 5;
-            const camX = transform.position.x - Math.sin(this.yaw) * Math.cos(this.pitch) * distance;
-            const camY = transform.position.y + this.height - Math.sin(this.pitch) * distance;
-            const camZ = transform.position.z - Math.cos(this.yaw) * Math.cos(this.pitch) * distance;
+            // Tercera persona: cámara detrás del jugador con rotación elíptica
+            const distanceHorizontal = 5; // Distancia horizontal desde el jugador
+            const distanceVertical = 3;   // Distancia vertical (más corta para forma ovalada)
+
+            // Limitar pitch para evitar que la cámara pase por debajo del terreno
+            const limitedPitch = Math.max(-Math.PI * 0.4, Math.min(Math.PI * 0.4, this.pitch));
+
+            // Calcular posición con elipse (distancia vertical escalada)
+            const camX = transform.position.x - Math.sin(this.yaw) * Math.cos(limitedPitch) * distanceHorizontal;
+            const camY = transform.position.y + this.height + Math.sin(limitedPitch) * distanceVertical;
+            const camZ = transform.position.z - Math.cos(this.yaw) * Math.cos(limitedPitch) * distanceHorizontal;
 
             return new Vec3(camX, camY, camZ);
         }
@@ -120,9 +158,11 @@ class PlayerController extends Component {
 
             return new Vec3(targetX, targetY, targetZ);
         } else {
+            // Tercera persona: mirar hacia los hombros/cuello (60% de la altura)
+            const targetHeight = this.height * 0.6;
             return new Vec3(
                 transform.position.x,
-                transform.position.y + 1.8,
+                transform.position.y + targetHeight,
                 transform.position.z
             );
         }

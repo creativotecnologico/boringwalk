@@ -11,8 +11,13 @@ class RenderSystem extends System {
         this.camera = camera;
     }
 
-    render(viewMatrix, projectionMatrix, wireframe = false) {
+    render(viewMatrix, projectionMatrix, wireframe = false, useMap = false) {
         if (!this.camera) return;
+
+        // Parámetros de niebla blanca realista
+        const fogColor = [0.85, 0.85, 1.0];  // Blanco ligeramente azulado
+        const fogNear = 500.0;  // Distancia donde empieza la niebla
+        const fogFar = 2500.0;  // Distancia donde la niebla es total
 
         for (const entity of this.entities) {
             if (!entity.active) continue;
@@ -26,8 +31,39 @@ class RenderSystem extends System {
 
             const gl = this.engine.gl;
 
-            // Cambiar shader según si la malla usa textura
-            if (mesh.useTexture && mesh.textureName) {
+            // Cambiar shader según el tipo de malla
+            if (mesh instanceof SkyMesh) {
+                // Usar shader de cielo
+                this.engine.useShader('sky');
+                
+                // Aplicar color de niebla al cielo para coherencia
+                this.engine.setUniform3fv('uFogColor', fogColor);
+            } else if (mesh instanceof ProceduralTerrainMesh) {
+                // Usar shader de terreno con normales
+                this.engine.useShader('terrain');
+
+                if (useMap) {
+                    // Modo mapa: luz ambiental muy fuerte para ver todo bien iluminado
+                    this.engine.setUniform3fv('uLightDirection', [0.0, 1.0, 0.0]);
+                    this.engine.setUniform3fv('uLightColor', [0.5, 0.5, 0.5]);
+                    this.engine.setUniform3fv('uAmbientColor', [0.8, 0.8, 0.8]);
+                } else {
+                    // Luz del sol desde arriba y lateral (mejor para ver relieve)
+                    this.engine.setUniform3fv('uLightDirection', [0.6, 1.2, 0.4]);
+                    this.engine.setUniform3fv('uLightColor', [1.2, 1.15, 1.0]);
+                    // Luz ambiental fuerte para ver bien los colores
+                    this.engine.setUniform3fv('uAmbientColor', [0.5, 0.52, 0.55]);
+                }
+                
+                // Configurar niebla blanca
+                this.engine.setUniform3fv('uFogColor', fogColor);
+                this.engine.setUniform1f('uFogNear', fogNear);
+                this.engine.setUniform1f('uFogFar', fogFar);
+                
+                // Posición de la cámara para calcular distancias
+                const cameraPos = this.camera.position;
+                this.engine.setUniform3fv('uCameraPosition', [cameraPos.x, cameraPos.y, cameraPos.z]);
+            } else if (mesh.useTexture && mesh.textureName) {
                 this.engine.useShader('texture');
 
                 // Enlazar textura diffuse
@@ -69,7 +105,10 @@ class RenderSystem extends System {
             // Renderizar la malla (el grid nunca en wireframe)
             const useWireframe = wireframe && !mesh.isGrid;
 
-            if (mesh.useTexture && mesh.textureName) {
+            // Pasar parámetro de mapa al terreno
+            if (mesh instanceof ProceduralTerrainMesh) {
+                mesh.render(this.engine, useWireframe, useMap);
+            } else if (mesh.useTexture && mesh.textureName) {
                 mesh.renderTextured(this.engine, useWireframe);
             } else {
                 mesh.render(this.engine, useWireframe);

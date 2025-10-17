@@ -1,71 +1,5 @@
 // BoringWalk - Nuevo main usando ECS + WebGL Engine
 
-// ========== SHADERS DE COLOR (ORIGINAL) ==========
-const vertexShaderSource = `
-    attribute vec3 aPosition;
-    attribute vec3 aColor;
-
-    uniform mat4 uModel;
-    uniform mat4 uView;
-    uniform mat4 uProjection;
-
-    varying vec3 vColor;
-
-    void main() {
-        gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
-        vColor = aColor;
-    }
-`;
-
-const fragmentShaderSource = `
-    precision mediump float;
-
-    varying vec3 vColor;
-
-    void main() {
-        gl_FragColor = vec4(vColor, 1.0);
-    }
-`;
-
-// ========== SHADERS DE TEXTURA (NUEVO) ==========
-const vertexShaderTextureSource = `
-    attribute vec3 aPosition;
-    attribute vec2 aTexCoord;  // Coordenadas UV de la textura
-
-    uniform mat4 uModel;
-    uniform mat4 uView;
-    uniform mat4 uProjection;
-    uniform sampler2D uDisplacement;  // Mapa de displacement
-    uniform float uDisplacementScale; // Escala del desplazamiento
-
-    varying vec2 vTexCoord;  // Pasar UV al fragment shader
-
-    void main() {
-        vec3 displacedPosition = aPosition;
-
-        // Leer valor del displacement map (0-1, en escala de grises)
-        float height = texture2D(uDisplacement, aTexCoord).r;
-
-        // Desplazar en el eje Y según el valor del displacement
-        displacedPosition.y += height * uDisplacementScale;
-
-        gl_Position = uProjection * uView * uModel * vec4(displacedPosition, 1.0);
-        vTexCoord = aTexCoord;  // Pasar coordenadas UV
-    }
-`;
-
-const fragmentShaderTextureSource = `
-    precision mediump float;
-
-    varying vec2 vTexCoord;  // Recibir UV del vertex shader
-    uniform sampler2D uTexture;  // La textura a aplicar
-
-    void main() {
-        // Muestrear el color de la textura en la coordenada UV
-        gl_FragColor = texture2D(uTexture, vTexCoord);
-    }
-`;
-
 // Variables globales
 let engine;
 let world;
@@ -76,7 +10,8 @@ let worldCameraEntity;
 let terrainMarkerEntity;
 let gridEntity;
 let playerCameraFrustumEntity;
-let cameraMode = 'player'; // 'player' o 'world'
+let cameraMode = 'player'; // 'player', 'world' o 'map'
+let mapMode = false;
 
 // Sistemas
 let renderSystem;
@@ -101,30 +36,63 @@ let terrainStats = {
 let textCanvas;
 let textCtx;
 
+// Renderer
+let renderer;
+
 // Inicializar
-function init() {
+async function init() {
     const canvas = document.getElementById('canvas');
 
-    // Configurar canvas de texto
+    // Crear engine (incluye renderer y managers)
+    try {
+        engine = await Engine.create('webgl', '1080p'); // API y resolución por defecto
+        renderer = engine.renderer;
+        
+        console.log(`Renderer detectado: ${renderer.api.toUpperCase()}`);
+        console.log(`Resolución: ${engine.getResolution().label}`);
+        console.log('Engine info:', engine.getInfo());
+        
+        // Si el renderer ya tiene un canvas, usarlo en lugar del del HTML
+        if (renderer.canvas) {
+            // Reemplazar el canvas del HTML con el del renderer
+            const oldCanvas = document.getElementById('canvas');
+            renderer.canvas.id = 'canvas';
+            oldCanvas.parentNode.replaceChild(renderer.canvas, oldCanvas);
+        }
+
+    } catch (error) {
+        console.error('Error al inicializar engine:', error);
+        alert('Tu navegador no soporta WebGL. Por favor, usa un navegador moderno.');
+        return;
+    }
+
+    // Configurar canvas de texto (después de tener el canvas final con resolución)
     textCanvas = document.getElementById('textCanvas');
     textCtx = textCanvas.getContext('2d');
-    textCanvas.width = canvas.width;
-    textCanvas.height = canvas.height;
+    textCanvas.width = renderer.canvas.width;
+    textCanvas.height = renderer.canvas.height;
 
-    // Crear WebGL Engine
-    engine = new WebGLEngine(canvas);
+    // Cargar y compilar shaders
+    try {
+        const shaders = await renderer.loadShaders();
+        console.log(`Cargados ${shaders.length} shaders para ${renderer.api}:`, shaders.map(s => s.name));
 
-    // Crear shader de colores (original)
-    engine.createShader('main', vertexShaderSource, fragmentShaderSource);
+        // Compilar cada shader en el engine
+        for (const shader of shaders) {
+            engine.createShader(shader.name, shader.vertexSource, shader.fragmentSource);
+            console.log(`✓ Shader '${shader.name}' compilado: ${shader.description}`);
+        }
 
-    // Crear shader de texturas (nuevo)
-    engine.createShader('texture', vertexShaderTextureSource, fragmentShaderTextureSource);
+        // Usar shader de colores por defecto
+        engine.useShader('main');
+    } catch (error) {
+        console.error('Error al cargar shaders:', error);
+        alert('Error al cargar los shaders. Por favor, verifica que los archivos existen.');
+        return;
+    }
 
-    // Usar shader de colores por defecto
-    engine.useShader('main');
-
-    // Crear cámara
-    camera = new Camera(75, engine.getAspectRatio(), 0.1, 1000);
+    // Crear cámara (far plane aumentado para ver terreno desde lejos)
+    camera = new Camera(75, engine.getAspectRatio(), 0.1, 10000);
 
     // Crear mundo ECS
     world = new World();
@@ -156,78 +124,47 @@ function init() {
 }
 
 function createScene() {
-    // Cargar texturas del terreno
-    engine.textureManager.loadTexture('./data/textures/terrain/Terrain003/Terrain003_2K_Color.png', 'terrain_diffuse');
-    engine.textureManager.loadTexture('./data/textures/terrain/Terrain003/Terrain003_2K_Protrusion.png', 'terrain_displacement');
-    engine.textureManager.loadTexture('./data/textures/terrain/Terrain003/Terrain003_2K.png', 'terrain_height');
+    // Crear cielo con gradiente
+    const skyMesh = new SkyMesh(engine, 2000);
+    window.skyEntity = world.createEntity('Sky');
+    window.skyEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
+    window.skyEntity.addComponent(new MeshRenderer(skyMesh));
 
-    // Cargar height map y crear terreno
-    engine.textureManager.loadImageData('./data/textures/terrain/Terrain003/Terrain003_2K.png', (imageData) => {
-        if (imageData) {
-            console.log(`Height map cargado: ${imageData.width}x${imageData.height}`);
+    // Crear terreno procedural de 5km x 5km centrado en (0,0,0)
+    const seed = Math.floor(Math.random() * 1000000);
+    terrain = new ProceduralTerrainMesh(engine, seed, 5000, 5000, 5);
+    const terrainData = terrain.generate();
 
-            // Crear terreno con height map (2000x2000 metros, resolución 2m)
-            terrain = new TerrainMesh(engine, 2000, 2000, 2, false); // No auto-generar
-            terrain.generateHeightMap(imageData, 100); // Escala de altura: 100 metros
-            terrain.generate();
+    // Guardar estadísticas del terreno
+    terrainStats.vertices = terrainData.verticesX * terrainData.verticesZ;
+    terrainStats.triangles = terrainData.numTriangles;
 
-            // Calcular estadísticas del terreno
-            const numVerticesX = Math.floor(2000 / 2) + 1;
-            const numVerticesZ = Math.floor(2000 / 2) + 1;
-            const totalVertices = numVerticesX * numVerticesZ;
-            const totalTriangles = (numVerticesX - 1) * (numVerticesZ - 1) * 2;
+    // Estimar memoria
+    const vertexBufferSize = terrainData.vertices.length * 4;
+    const colorBufferSize = terrainData.colorMap.length * 4;
+    const normalBufferSize = terrainData.normals.length * 4;
+    const indexBufferSize = terrainData.indices.length * 4;
+    const totalMemoryMB = (vertexBufferSize + colorBufferSize + normalBufferSize + indexBufferSize) / (1024 * 1024);
+    terrainStats.memoryMB = totalMemoryMB;
 
-            // Estimar memoria (aproximado)
-            const vertexBufferSize = totalVertices * 3 * 4; // 3 floats (x,y,z) * 4 bytes
-            const colorBufferSize = totalVertices * 3 * 4; // 3 floats (r,g,b) * 4 bytes
-            const uvBufferSize = totalVertices * 2 * 4; // 2 floats (u,v) * 4 bytes
-            const indexBufferSize = totalTriangles * 3 * 4; // 3 indices * 4 bytes (Uint32)
-            const totalMemoryMB = (vertexBufferSize + colorBufferSize + uvBufferSize + indexBufferSize) / (1024 * 1024);
+    console.log(`=== Estadísticas del Terreno ===`);
+    console.log(`Seed: ${seed}`);
+    console.log(`Tamaño: ${terrainData.sizeX}x${terrainData.sizeZ}m`);
+    console.log(`Resolución: ${terrainData.resolution}m`);
+    console.log(`Vértices: ${terrainStats.vertices.toLocaleString()}`);
+    console.log(`Triángulos: ${terrainStats.triangles.toLocaleString()}`);
+    console.log(`Memoria GPU (estimada): ${totalMemoryMB.toFixed(2)} MB`);
 
-            // Guardar estadísticas
-            terrainStats.vertices = totalVertices;
-            terrainStats.triangles = totalTriangles;
-            terrainStats.memoryMB = totalMemoryMB;
+    // Crear entidad del terreno
+    const terrainEntity = world.createEntity('Terrain');
+    terrainEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
+    terrainEntity.addComponent(new MeshRenderer(terrain));
 
-            console.log(`=== Estadísticas del Terreno ===`);
-            console.log(`Vértices: ${totalVertices.toLocaleString()}`);
-            console.log(`Triángulos: ${totalTriangles.toLocaleString()}`);
-            console.log(`Memoria GPU (estimada): ${totalMemoryMB.toFixed(2)} MB`);
+    physicsSystem.setTerrain(terrain);
 
-            // Habilitar textura en el terreno
-            terrain.useTexture = true;
-            terrain.textureName = 'terrain_diffuse';
-            terrain.displacementName = 'terrain_displacement';
-
-            // Crear entidad del terreno
-            const terrainEntity = world.createEntity('Terrain');
-            terrainEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
-            terrainEntity.addComponent(new MeshRenderer(terrain));
-
-            physicsSystem.setTerrain(terrain);
-        } else {
-            console.error('Error cargando height map, usando terreno aleatorio');
-            createTerrainFallback();
-        }
-    });
-
-    // Función de fallback si falla la carga
-    function createTerrainFallback() {
-        terrain = new TerrainMesh(engine, 500, 500, 2);
-        terrain.useTexture = true;
-        terrain.textureName = 'terrain_diffuse';
-        terrain.displacementName = 'terrain_displacement';
-
-        const terrainEntity = world.createEntity('Terrain');
-        terrainEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
-        terrainEntity.addComponent(new MeshRenderer(terrain));
-
-        physicsSystem.setTerrain(terrain);
-    }
-
-    // Crear entidad del jugador
+    // Crear entidad del jugador centrado en (0,0,0)
     playerEntity = world.createEntity('Player');
-    const playerTransform = new Transform(new Vec3(0, 0, 5));
+    const playerTransform = new Transform(new Vec3(0, 50, 0)); // Altura inicial: 50m
     playerTransform.pivot = new Vec3(0, 0.9, 0); // Pivote en la base de la cápsula
 
     const playerController = new PlayerController();
@@ -271,9 +208,9 @@ function createScene() {
     terrainMarkerEntity.addComponent(new MeshRenderer(Primitives.createMarker(engine, 0.15, [1, 1, 0])));
 
     // Crear grid de depuración (tablero de ajedrez)
-    gridEntity = world.createEntity('Grid');
-    gridEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
-    gridEntity.addComponent(new MeshRenderer(Primitives.createGrid(engine, 500, 500, 10)));
+    // gridEntity = world.createEntity('Grid');
+    // gridEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
+    // gridEntity.addComponent(new MeshRenderer(Primitives.createGrid(engine, 500, 500, 10)));
 
     // Crear frustum de cámara del jugador (visible solo en modo mundo)
     playerCameraFrustumEntity = world.createEntity('PlayerCameraFrustum');
@@ -303,14 +240,19 @@ function setupKeyboardListeners() {
             cameraMode = cameraMode === 'player' ? 'world' : 'player';
             console.log(`Cámara: ${cameraMode === 'player' ? 'Jugador' : 'Mundo Libre'}`);
         }
-        if (e.key === 'F6') {
+        if (e.key === 'm' || e.key === 'M') {
             e.preventDefault();
-            const gridRenderer = gridEntity.getComponent(MeshRenderer);
-            if (gridRenderer) {
-                gridRenderer.visible = !gridRenderer.visible;
-                console.log(`Grid: ${gridRenderer.visible ? 'Visible' : 'Oculto'}`);
-            }
+            mapMode = !mapMode;
+            console.log(`Mapa: ${mapMode ? 'Activado' : 'Desactivado'}`);
         }
+        // if (e.key === 'F6') {
+        //     e.preventDefault();
+        //     const gridRenderer = gridEntity.getComponent(MeshRenderer);
+        //     if (gridRenderer) {
+        //         gridRenderer.visible = !gridRenderer.visible;
+        //         console.log(`Grid: ${gridRenderer.visible ? 'Visible' : 'Oculto'}`);
+        //     }
+        // }
     });
 }
 
@@ -396,7 +338,14 @@ function render(time) {
     // Actualizar según el modo de cámara
     let cameraPos, cameraTarget;
 
-    if (cameraMode === 'player') {
+    if (mapMode) {
+        // Modo mapa: vista desde arriba de TODO el mapa (centro en 0,0)
+        // No se mueve, solo muestra el mapa completo con el jugador
+        cameraPos = new Vec3(0, 400, 0);
+        cameraTarget = new Vec3(0, 0, 0);
+
+        // No actualizar física ni controles en modo mapa
+    } else if (cameraMode === 'player') {
         // Actualizar controles del jugador
         const playerController = playerEntity.getComponent(PlayerController);
         const playerTransform = playerEntity.getComponent(Transform);
@@ -413,6 +362,9 @@ function render(time) {
         if (inputSystem.isKeyPressed('KeyD') || inputSystem.isKeyPressed('ArrowRight')) {
             playerController.move('right', playerController.moveSpeed * deltaTime);
         }
+
+        // Actualizar PlayerController (head bobbing)
+        playerController.update(deltaTime);
 
         // Actualizar física
         world.update(deltaTime);
@@ -491,18 +443,60 @@ function render(time) {
         }
     }
 
-    // Crear matrices
-    const viewMatrix = Mat4.lookAt(cameraPos, cameraTarget, { x: 0, y: 1, z: 0 });
-    const projectionMatrix = camera.getProjectionMatrix();
+    // Crear matrices (usar vector "up" diferente en modo mapa porque miramos hacia abajo)
+    const upVector = mapMode ? { x: 0, y: 0, z: -1 } : { x: 0, y: 1, z: 0 };
+    const viewMatrix = Mat4.lookAt(cameraPos, cameraTarget, upVector);
+
+    // Usar proyección ortográfica en modo mapa para ver todo el mapa
+    let projectionMatrix;
+    if (mapMode) {
+        const orthoSize = 2600; // Mostrar 2600m a cada lado (5200m total, ligeramente más que el terreno de 5000m)
+        const aspect = engine.getAspectRatio();
+        // Ajustar según aspect ratio para que siempre se vea todo el mapa
+        // Near/far: desde donde mira la cámara hacia abajo
+        // Cámara a Y=400, terreno de Y=-12 a Y=450
+        // Near debe ser negativo (450-400=50 hacia arriba), far debe cubrir hasta -12 (400+12=412 hacia abajo)
+        if (aspect > 1) {
+            // Pantalla más ancha que alta
+            projectionMatrix = Mat4.ortho(-orthoSize * aspect, orthoSize * aspect, -orthoSize, orthoSize, -100, 500);
+        } else {
+            // Pantalla más alta que ancha
+            projectionMatrix = Mat4.ortho(-orthoSize, orthoSize, -orthoSize / aspect, orthoSize / aspect, -100, 500);
+        }
+    } else {
+        projectionMatrix = camera.getProjectionMatrix();
+    }
 
     // Actualizar info de debug
     updateDebugInfo(cameraPos, cameraTarget);
 
-    // Limpiar pantalla
-    engine.clear();
+    // Ocultar/mostrar cielo según modo mapa
+    if (window.skyEntity) {
+        const skyRenderer = window.skyEntity.getComponent(MeshRenderer);
+        if (skyRenderer) {
+            skyRenderer.visible = !mapMode;
+        }
+    }
 
-    // Renderizar
-    renderSystem.render(viewMatrix, projectionMatrix, wireframeMode);
+    // Limpiar pantalla
+    if (mapMode) {
+        engine.clear(0.1, 0.1, 0.1, 1.0); // Fondo gris oscuro para mapa
+    } else {
+        engine.clear(0.0, 0.0, 0.0, 1.0); // Negro normal
+    }
+
+    // Renderizar (pasar modo mapa al sistema)
+    renderSystem.render(viewMatrix, projectionMatrix, wireframeMode, mapMode);
+
+    // Renderizar marcador del jugador en modo mapa
+    if (mapMode) {
+        const playerTransform = playerEntity.getComponent(Transform);
+        const playerController = playerEntity.getComponent(PlayerController);
+        const playerPos = playerTransform.position;
+
+        // Dibujar marcador del jugador
+        renderPlayerMarker(engine, playerPos, playerController.yaw, viewMatrix, projectionMatrix);
+    }
 
     // Líneas del grid comentadas
     // if (gridEntity) {
@@ -541,24 +535,6 @@ function render(time) {
         }
     }
 
-    // Renderizar gizmo de ejes del mundo (brújula anclada)
-    const worldAxisGizmos = world.getEntitiesWithComponents(WorldAxisGizmo, Transform, MeshRenderer);
-    if (worldAxisGizmos.length > 0) {
-        const gizmo = worldAxisGizmos[0];
-        const gizmoMesh = gizmo.getComponent(MeshRenderer).mesh;
-
-        // Posición fija en espacio de clip (esquina superior derecha)
-        const gizmoModelMatrix = Mat4.translation(0.75, 0.85, -2);
-
-        // Usar matriz identidad para la vista (sin transformación de cámara)
-        const gizmoViewMatrix = Mat4.identity();
-
-        engine.setUniformMatrix4fv('uModel', gizmoModelMatrix.elements);
-        engine.setUniformMatrix4fv('uView', gizmoViewMatrix.elements);
-        engine.setUniformMatrix4fv('uProjection', projectionMatrix.elements);
-        gizmoMesh.renderLines(engine);
-    }
-
     // Renderizar frustum de cámara del jugador (en modo mundo)
     if (playerCameraFrustumEntity) {
         const frustumRenderer = playerCameraFrustumEntity.getComponent(MeshRenderer);
@@ -595,6 +571,87 @@ function render(time) {
 // function project3DTo2D(x, y, z, viewMatrix, projectionMatrix) {
 //     ...
 // }
+
+// Función para renderizar el marcador del jugador en el mapa
+function renderPlayerMarker(engine, playerPos, yaw, viewMatrix, projectionMatrix) {
+    const gl = engine.gl;
+
+    // Usar shader básico
+    engine.useShader('main');
+
+    // Crear geometría del marcador (triángulo que apunta en la dirección del jugador)
+    const markerSize = 50; // 50m de tamaño
+    const halfSize = markerSize / 2;
+
+    // Vértices del triángulo (apunta hacia adelante en Z-)
+    const forward = markerSize;
+    const side = markerSize * 0.5;
+
+    // Calcular rotación basada en yaw (invertir para que coincida con la dirección real)
+    const cos = Math.cos(-yaw);
+    const sin = Math.sin(-yaw);
+
+    // Vértices del triángulo rotado
+    const v0x = playerPos.x + (0 * cos - forward * sin);
+    const v0z = playerPos.z + (0 * sin + forward * cos);
+
+    const v1x = playerPos.x + (-side * cos - (-side) * sin);
+    const v1z = playerPos.z + (-side * sin + (-side) * cos);
+
+    const v2x = playerPos.x + (side * cos - (-side) * sin);
+    const v2z = playerPos.z + (side * sin + (-side) * cos);
+
+    const markerVertices = new Float32Array([
+        v0x, playerPos.y + 10, v0z,  // Punta (adelante)
+        v1x, playerPos.y + 10, v1z,  // Izquierda atrás
+        v2x, playerPos.y + 10, v2z   // Derecha atrás
+    ]);
+
+    // Color del marcador (rojo brillante)
+    const markerColors = new Float32Array([
+        1.0, 0.0, 0.0,
+        1.0, 0.0, 0.0,
+        1.0, 0.0, 0.0
+    ]);
+
+    // Crear buffers temporales
+    const posBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, markerVertices, gl.DYNAMIC_DRAW);
+
+    const colBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, markerColors, gl.DYNAMIC_DRAW);
+
+    // Obtener ubicaciones de atributos
+    const program = engine.getCurrentProgram();
+    const aPosition = gl.getAttribLocation(program, 'aPosition');
+    const aColor = gl.getAttribLocation(program, 'aColor');
+
+    // Configurar atributos
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+    gl.enableVertexAttribArray(aPosition);
+    gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+    gl.enableVertexAttribArray(aColor);
+    gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+    // Configurar uniforms (sin transformación de modelo)
+    const identityMatrix = Mat4.identity();
+    engine.setUniformMatrix4fv('uModel', identityMatrix.elements);
+    engine.setUniformMatrix4fv('uView', viewMatrix.elements);
+    engine.setUniformMatrix4fv('uProjection', projectionMatrix.elements);
+
+    // Renderizar triángulo
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    // Limpiar
+    gl.disableVertexAttribArray(aPosition);
+    gl.disableVertexAttribArray(aColor);
+    gl.deleteBuffer(posBuffer);
+    gl.deleteBuffer(colBuffer);
+}
 
 function updateDebugInfo(cameraPos, cameraTarget) {
     const playerController = playerEntity.getComponent(PlayerController);

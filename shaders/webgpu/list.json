@@ -1,0 +1,4 @@
+{
+  "shaders": [],
+  "note": "WebGPU shaders pendientes de implementación. Usarán formato WGSL."
+}

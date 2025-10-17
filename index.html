@@ -15,6 +15,7 @@
         <p>F3 - Modo Debug</p>
         <p>F4 - Cambiar Vista</p>
         <p>F5 - Cámara Libre/Jugador</p>
+        <p>M - Minimapa (Vista Superior)</p>
     </div> 
     <div id="player-info">
         <h3>Información</h3>
@@ -32,12 +33,19 @@
     <script src="src/math/Vec3.js"></script>
     <script src="src/math/Mat4.js"></script>
 
-    <!-- Engine -->
-    <script src="src/engine/WebGLContext.js"></script>
+    <!-- Renderer System -->
+    <script src="src/core/Renderer.js"></script>
+    <script src="src/core/WebGLRenderer.js"></script>
+    <script src="src/core/WebGL2Renderer.js"></script>
+    <script src="src/core/WebGPURenderer.js"></script>
+
+    <!-- Engine Managers -->
     <script src="src/engine/ShaderManager.js"></script>
     <script src="src/engine/BufferManager.js"></script>
     <script src="src/engine/TextureManager.js"></script>
-    <script src="src/engine/WebGLEngine.js"></script>
+    
+    <!-- Engine -->
+    <script src="src/core/Engine.js"></script>
 
     <!-- ECS -->
     <script src="src/ecs/Component.js"></script>
@@ -62,6 +70,11 @@
     <script src="src/geometry/Mesh.js"></script>
     <script src="src/geometry/Primitives.js"></script>
     <script src="src/geometry/TerrainMesh.js"></script>
+    <script src="src/geometry/SkyMesh.js"></script>
+
+    <!-- Terrain Generation -->
+    <script src="src/tools/TerrainGeneratorSingle.js"></script>
+    <script src="src/geometry/ProceduralTerrainMesh.js"></script>
 
     <!-- Camera (old but still needed) -->
     <script src="src/core/Camera.js"></script>

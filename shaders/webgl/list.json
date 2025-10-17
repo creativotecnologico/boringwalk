@@ -1,0 +1,36 @@
+{
+  "shaders": [
+    {
+      "name": "main",
+      "description": "Shader de color básico para renderizado de geometría con colores por vértice",
+      "vertex": "color.vert",
+      "fragment": "color.frag",
+      "uniforms": ["uModel", "uView", "uProjection"],
+      "attributes": ["aPosition", "aColor"]
+    },
+    {
+      "name": "texture",
+      "description": "Shader de textura con displacement mapping",
+      "vertex": "texture.vert",
+      "fragment": "texture.frag",
+      "uniforms": ["uModel", "uView", "uProjection", "uTexture", "uDisplacement", "uDisplacementScale"],
+      "attributes": ["aPosition", "aTexCoord"]
+    },
+    {
+      "name": "terrain",
+      "description": "Shader para terreno con color por bioma y normales para iluminación",
+      "vertex": "terrain.vert",
+      "fragment": "terrain.frag",
+      "uniforms": ["uModel", "uView", "uProjection", "uLightDirection", "uLightColor", "uAmbientColor"],
+      "attributes": ["aPosition", "aColor", "aNormal"]
+    },
+    {
+      "name": "sky",
+      "description": "Shader para cielo con gradiente",
+      "vertex": "sky.vert",
+      "fragment": "sky.frag",
+      "uniforms": ["uView", "uProjection"],
+      "attributes": ["aPosition"]
+    }
+  ]
+}

@@ -151,6 +151,26 @@ class Mat4 {
         return mat;
     }
 
+    // Matriz de proyección ortográfica
+    static ortho(left, right, bottom, top, near, far) {
+        const mat = new Mat4();
+        const e = mat.elements;
+
+        const w = right - left;
+        const h = top - bottom;
+        const d = far - near;
+
+        e[0] = 2 / w;
+        e[5] = 2 / h;
+        e[10] = -2 / d;
+        e[12] = -(right + left) / w;
+        e[13] = -(top + bottom) / h;
+        e[14] = -(far + near) / d;
+        e[15] = 1;
+
+        return mat;
+    }
+
     // Multiplicar matrices (column-major order)
     multiply(other) {
         const a = this.elements;

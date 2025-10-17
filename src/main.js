@@ -39,14 +39,45 @@ let textCtx;
 // Renderer
 let renderer;
 
+// Control de pantalla de inicio
+let gameStarted = false;
+
+// Función para actualizar barra de progreso
+function updateLoadingProgress(progress, message) {
+    const progressFill = document.getElementById('progress-fill');
+    const loadingDetails = document.getElementById('loading-details');
+    
+    if (progressFill) {
+        progressFill.style.width = `${progress}%`;
+    }
+    if (loadingDetails) {
+        loadingDetails.textContent = message;
+    }
+}
+
+// Función para ocultar pantalla de inicio
+function hideStartScreen() {
+    const startScreen = document.getElementById('start-screen');
+    startScreen.classList.add('hidden');
+    
+    // Eliminar después de la transición
+    setTimeout(() => {
+        startScreen.style.display = 'none';
+    }, 500);
+}
+
 // Inicializar
 async function init() {
+    updateLoadingProgress(5, 'Inicializando motor gráfico...');
+    
     const canvas = document.getElementById('canvas');
 
     // Crear engine (incluye renderer y managers)
     try {
         engine = await Engine.create('webgl', '1080p'); // API y resolución por defecto
         renderer = engine.renderer;
+        
+        updateLoadingProgress(15, `Renderer: ${renderer.api.toUpperCase()} - ${engine.getResolution().label}`);
         
         console.log(`Renderer detectado: ${renderer.api.toUpperCase()}`);
         console.log(`Resolución: ${engine.getResolution().label}`);
@@ -74,9 +105,11 @@ async function init() {
 
     // Cargar y compilar shaders
     try {
+        updateLoadingProgress(25, 'Cargando shaders...');
         const shaders = await renderer.loadShaders();
         console.log(`Cargados ${shaders.length} shaders para ${renderer.api}:`, shaders.map(s => s.name));
 
+        updateLoadingProgress(35, 'Compilando shaders...');
         // Compilar cada shader en el engine
         for (const shader of shaders) {
             engine.createShader(shader.name, shader.vertexSource, shader.fragmentSource);
@@ -85,12 +118,15 @@ async function init() {
 
         // Usar shader de colores por defecto
         engine.useShader('main');
+        updateLoadingProgress(45, 'Shaders compilados correctamente');
     } catch (error) {
         console.error('Error al cargar shaders:', error);
         alert('Error al cargar los shaders. Por favor, verifica que los archivos existen.');
         return;
     }
 
+    updateLoadingProgress(50, 'Configurando cámara y sistemas...');
+    
     // Crear cámara (far plane aumentado para ver terreno desde lejos)
     camera = new Camera(75, engine.getAspectRatio(), 0.1, 10000);
 
@@ -105,6 +141,8 @@ async function init() {
 
     inputSystem = world.addSystem(new InputSystem());
 
+    updateLoadingProgress(60, 'Generando escena...');
+    
     // Crear escena
     createScene();
 
@@ -119,21 +157,29 @@ async function init() {
         camera.setAspect(engine.getAspectRatio());
     });
 
+    updateLoadingProgress(100, '¡Listo para comenzar!');
+    
     // Iniciar loop
     requestAnimationFrame(render);
 }
 
 function createScene() {
+    updateLoadingProgress(65, 'Creando cielo...');
+    
     // Crear cielo con gradiente
     const skyMesh = new SkyMesh(engine, 2000);
     window.skyEntity = world.createEntity('Sky');
     window.skyEntity.addComponent(new Transform(new Vec3(0, 0, 0)));
     window.skyEntity.addComponent(new MeshRenderer(skyMesh));
 
+    updateLoadingProgress(70, 'Generando terreno procedural 5km x 5km...');
+    
     // Crear terreno procedural de 5km x 5km centrado en (0,0,0)
     const seed = Math.floor(Math.random() * 1000000);
     terrain = new ProceduralTerrainMesh(engine, seed, 5000, 5000, 5);
     const terrainData = terrain.generate();
+
+    updateLoadingProgress(85, 'Procesando geometría del terreno...');
 
     // Guardar estadísticas del terreno
     terrainStats.vertices = terrainData.verticesX * terrainData.verticesZ;
@@ -161,6 +207,8 @@ function createScene() {
     terrainEntity.addComponent(new MeshRenderer(terrain));
 
     physicsSystem.setTerrain(terrain);
+
+    updateLoadingProgress(90, 'Creando jugador y entidades...');
 
     // Crear entidad del jugador centrado en (0,0,0)
     playerEntity = world.createEntity('Player');
@@ -219,6 +267,8 @@ function createScene() {
     const frustumRenderer = new MeshRenderer(frustumMesh);
     frustumRenderer.visible = false; // Oculto por defecto
     playerCameraFrustumEntity.addComponent(frustumRenderer);
+    
+    updateLoadingProgress(95, 'Finalizando...');
 }
 
 function setupKeyboardListeners() {
@@ -675,4 +725,22 @@ function updateDebugInfo(cameraPos, cameraTarget) {
 }
 
 // Iniciar cuando el DOM esté listo
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', () => {
+    const startButton = document.getElementById('start-button');
+    const loadingSection = document.getElementById('loading-section');
+    
+    startButton.addEventListener('click', async () => {
+        // Ocultar botón y mostrar barra de carga
+        startButton.style.display = 'none';
+        loadingSection.classList.remove('hidden');
+        
+        // Iniciar carga del juego
+        await init();
+        
+        // Una vez cargado, ocultar pantalla de inicio
+        setTimeout(() => {
+            hideStartScreen();
+            gameStarted = true;
+        }, 500);
+    });
+});

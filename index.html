@@ -7,6 +7,27 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Pantalla de inicio -->
+    <div id="start-screen">
+        <div class="start-content">
+            <h1>BoringWalk</h1>
+            <p class="description">
+                Un simulador de andar. Nada más, nada menos.
+            </p>
+            <p class="dev-note">
+                El juego está en desarrollo. Iremos añadiendo nuevas características en futuras versiones.
+            </p>
+            <button id="start-button" class="start-btn">Iniciar</button>
+            <div id="loading-section" class="hidden">
+                <div class="loading-text">Cargando...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="loading-details" id="loading-details">Iniciando...</div>
+            </div>
+        </div>
+    </div>
+
     <canvas id="canvas"></canvas>
     <canvas id="textCanvas"></canvas>
     <div id="instructions">
